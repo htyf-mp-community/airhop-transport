@@ -1,6 +1,9 @@
 export { AirhopTransport } from "./transport-manager";
+export { WiFiAwarePairing } from "./wifi-aware-pairing";
+export type { WiFiPairingSubscription } from "./wifi-aware-pairing";
 export type { AirhopTransportOptions, TransportLink, TransportSendResult, TransportSubscription } from "./transport-manager";
 export type { LanPeerEvent, NativeRadioState, TransportAvailabilityEvent, TransportEvent, TransportKind, TransportLinkConnectedEvent, TransportLinkDisconnectedEvent, TransportPacketReceivedEvent, TransportState } from "./types";
+export type { WiFiPairingColors, WiFiPairingLabels, WiFiPairingMode, WiFiPairingState } from "./types";
 export { MeshTransportEngine } from "./mesh/mesh-transport-engine";
 export type { MeshIngressContext, MeshPacketEvent, MeshPacketSubscription, MeshTransportEngineOptions } from "./mesh/mesh-transport-engine";
 export { decodePacket, encodePacket, Flags, PacketType, signPacket, verifyPacket } from "./wire/packet-codec";

@@ -137,6 +137,23 @@ export interface AirhopWiFiSpec extends TurboModule {
   removeListeners(count: number): void;
 }
 
+export interface WiFiPairingState { supported: boolean; count: number }
+export type WiFiPairingMode = "find" | "discoverable";
+export interface WiFiPairingLabels { action: string; cancel: string; unavailable: string }
+export interface WiFiPairingColors {
+  bg: string;
+  surface: string;
+  border: string;
+  textPrimary: string;
+  textMuted: string;
+}
+export interface AirhopWiFiPairingSpec extends TurboModule {
+  getPairingState(): Promise<WiFiPairingState>;
+  presentPairing(mode: WiFiPairingMode, labels: WiFiPairingLabels, colors: WiFiPairingColors): Promise<void>;
+  addListener(eventName: string): void;
+  removeListeners(count: number): void;
+}
+
 export interface AirhopBLEEvents {
   packetReceived: { linkID: string; dataBase64: string };
   linkConnected: { linkID: string; role?: "central" | "peripheral"; rssi?: number };

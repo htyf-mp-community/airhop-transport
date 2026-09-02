@@ -8,11 +8,23 @@
     "newArchEnabled": true,
     "ios": {
       "bundleIdentifier": "com.htyfmp.airhoptransport.example",
+      "entitlements": {
+        "com.apple.developer.wifi-aware": [
+          "Publish",
+          "Subscribe"
+        ]
+      },
       "infoPlist": {
         "NSBluetoothAlwaysUsageDescription": "Discover and communicate with nearby Airhop devices.",
         "NSBluetoothPeripheralUsageDescription": "Advertise this device to nearby Airhop devices.",
         "NSLocalNetworkUsageDescription": "Transfer data directly to Airhop devices on the local network.",
         "NSBonjourServices": ["_airhop-lan-v1._tcp"],
+        "WiFiAwareServices": {
+          "_airhop-mesh-v1._tcp": {
+            "Publishable": {},
+            "Subscribable": {}
+          }
+        },
         "UIBackgroundModes": ["bluetooth-central", "bluetooth-peripheral"]
       }
     },

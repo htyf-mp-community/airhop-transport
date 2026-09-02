@@ -80,9 +80,14 @@ export class AirhopTransport {
   async startAll(): Promise<void> {
     for (const kind of this.options.preferredKinds ?? ["wifi", "lan", "ble"]) {
       if (!this.isSupported(kind)) continue;
-      if (kind === "ble") await this.startBle();
-      else if (kind === "lan") await this.startLan();
-      else await this.startWifi();
+      try {
+        if (kind === "ble") await this.startBle();
+        else if (kind === "lan") await this.startLan();
+        else await this.startWifi();
+      } catch {
+        // One unavailable fast path must not prevent LAN or BLE fallback from
+        // starting. The per-transport state remains "error" for diagnostics.
+      }
     }
   }
   async stopAll(): Promise<void> {

@@ -2,6 +2,8 @@ import "react-native-get-random-values";
 
 import {
   AirhopTransport,
+  WiFiAwarePairing,
+  type WiFiPairingMode,
   type TransportKind,
   type TransportSubscription,
 } from "@htyf-mp/airhop-transport";
@@ -44,6 +46,7 @@ export default function App() {
     lanInstanceName: `airhop-example-${Date.now().toString(36)}`,
     bleLocalName: "airhop-example",
   }), []);
+  const pairing = useMemo(() => new WiFiAwarePairing(), []);
   const subscriptions = useRef<TransportSubscription[]>([]);
   const eventID = useRef(0);
   const [status, setStatus] = useState<string>(copy.stopped);
@@ -51,6 +54,8 @@ export default function App() {
   const [message, setMessage] = useState("");
   const [links, setLinks] = useState<LinkRow[]>([]);
   const [events, setEvents] = useState<EventRow[]>([]);
+  const [pairingSupported, setPairingSupported] = useState(false);
+  const [pairedDeviceCount, setPairedDeviceCount] = useState(0);
 
   const addEvent = (text: string) => {
     eventID.current += 1;
@@ -75,12 +80,48 @@ export default function App() {
         addEvent(`${copy.lanFound}: ${serviceName}`);
         void transport.connectLanPeer(serviceName).catch(() => undefined);
       }),
+      pairing.onDevicesChanged((count) => setPairedDeviceCount(count)),
     ];
+    if (Platform.OS === "ios") {
+      void pairing.getState().then((state) => {
+        setPairingSupported(state.supported);
+        setPairedDeviceCount(state.count);
+      });
+    }
     return () => {
       for (const subscription of subscriptions.current) subscription.remove();
       void transport.dispose();
     };
-  }, [transport]);
+  }, [pairing, transport]);
+
+  const presentPairing = async (mode: WiFiPairingMode) => {
+    if (!pairingSupported) {
+      Alert.alert(copy.error, copy.pairingUnsupported);
+      return;
+    }
+    try {
+      await pairing.present(
+        mode,
+        {
+          action: mode === "find" ? copy.pairingActionFind : copy.pairingActionDiscoverable,
+          cancel: copy.pairingCancel,
+          unavailable: copy.pairingUnavailable,
+        },
+        {
+          bg: theme.color.background,
+          surface: theme.color.surface,
+          border: theme.color.border,
+          textPrimary: theme.color.text,
+          textMuted: theme.color.muted,
+        },
+      );
+      const state = await pairing.getState();
+      setPairedDeviceCount(state.count);
+      if (state.count > 0 && running) await transport.startWifi();
+    } catch (error) {
+      addEvent(error instanceof Error ? error.message : String(error));
+    }
+  };
 
   const toggle = async () => {
     try {
@@ -148,6 +189,21 @@ export default function App() {
           </Pressable>
         </View>
 
+        {Platform.OS === "ios" ? (
+          <View style={styles.pairingCard}>
+            <Text style={styles.sectionTitle}>{copy.wifiAwarePairing}</Text>
+            <Text style={styles.body}>{`${copy.pairedDevices}: ${pairedDeviceCount}`}</Text>
+            <View style={styles.pairingActions}>
+              <Pressable accessibilityRole="button" onPress={() => void presentPairing("discoverable")} style={styles.secondaryButton}>
+                <Text style={styles.secondaryButtonText}>{copy.becomeDiscoverable}</Text>
+              </Pressable>
+              <Pressable accessibilityRole="button" onPress={() => void presentPairing("find")} style={styles.secondaryButton}>
+                <Text style={styles.secondaryButtonText}>{copy.findDevice}</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
+
         <Text style={styles.sectionTitle}>{copy.links}</Text>
         <Text style={styles.body}>{links.length ? links.map((link) => `${link.kind}: ${link.linkID}`).join("\n") : copy.noLinks}</Text>
         <Text style={styles.sectionTitle}>{copy.events}</Text>
@@ -179,4 +235,8 @@ const styles = StyleSheet.create({
   disabled: { opacity: 0.45 },
   body: { backgroundColor: theme.color.surface, borderRadius: theme.radius.md, color: theme.color.muted, fontSize: theme.font.sm, padding: theme.space.md },
   event: { borderBottomColor: theme.color.border, borderBottomWidth: 1, color: theme.color.muted, fontSize: theme.font.sm, paddingVertical: theme.space.sm },
+  pairingCard: { gap: theme.space.sm },
+  pairingActions: { flexDirection: "row", gap: theme.space.sm },
+  secondaryButton: { alignItems: "center", borderColor: theme.color.accent, borderRadius: theme.radius.sm, borderWidth: 1, flex: 1, justifyContent: "center", minHeight: theme.touch, paddingHorizontal: theme.space.sm },
+  secondaryButtonText: { color: theme.color.accent, fontSize: theme.font.sm, fontWeight: "600", textAlign: "center" },
 });

@@ -14,6 +14,6 @@ Pod::Spec.new do |spec|
   spec.swift_version = "5.9"
   spec.frameworks = "CoreBluetooth", "Network"
   # WiFiAware exists only in the iOS 26 SDK and must remain optional at runtime.
-  spec.weak_frameworks = "WiFiAware"
+  spec.weak_frameworks = "WiFiAware", "DeviceDiscoveryUI"
   spec.dependency "React-Core"
 end

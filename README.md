@@ -73,4 +73,90 @@ await mesh.send(packet);
 
 包还导出 `NoiseHandshake`、`noiseXSeal/noiseXOpen` 和 Double Ratchet 原语。密钥生成、Keychain、会话授权和 peer 身份绑定由宿主注入，Noise 会话应按 peer 保存，不能按临时 link 保存。
 
+iOS 26 的 Wi-Fi Aware 必须先通过系统界面配对：
+
+```ts
+import { WiFiAwarePairing } from "@htyf-mp/airhop-transport";
+
+const pairing = new WiFiAwarePairing();
+const state = await pairing.getState();
+if (state.supported && state.count === 0) {
+  await pairing.present("find", labels, colors);
+}
+```
+
+`labels` 和 `colors` 由业务传入，因此原生模块不会硬编码产品文案或主题。二维码邀请和会话认证仍由业务层处理。
+
+### iOS Wi-Fi Aware 配置
+
+Wi-Fi Aware 需要 iOS 26 真机、App entitlement、服务声明以及包含该能力的签名描述文件。模拟器和旧系统不支持。
+
+在 Xcode 中打开 App target，进入 `Signing & Capabilities`，点击 `+ Capability` 并添加 `Wi-Fi Aware`。Airhop 同时发布和订阅服务，因此 entitlement 需要两个操作：
+
+```xml
+<key>com.apple.developer.wifi-aware</key>
+<array>
+  <string>Publish</string>
+  <string>Subscribe</string>
+</array>
+```
+
+宿主 App 的 `Info.plist` 还必须声明与原生模块完全相同的服务名：
+
+```xml
+<key>WiFiAwareServices</key>
+<dict>
+  <key>_airhop-mesh-v1._tcp</key>
+  <dict>
+    <key>Publishable</key>
+    <dict/>
+    <key>Subscribable</key>
+    <dict/>
+  </dict>
+</dict>
+```
+
+Expo 项目应把配置写入 `app.json`，避免 `prebuild` 后丢失：
+
+```json
+{
+  "expo": {
+    "ios": {
+      "entitlements": {
+        "com.apple.developer.wifi-aware": ["Publish", "Subscribe"]
+      },
+      "infoPlist": {
+        "WiFiAwareServices": {
+          "_airhop-mesh-v1._tcp": {
+            "Publishable": {},
+            "Subscribable": {}
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+修改后重新生成并安装真机 development build：
+
+```sh
+npx expo prebuild --clean
+npx expo run:ios --device
+```
+
+最终以签名后的 `.app` 为准。下面的命令应输出 `Publish` 和 `Subscribe`：
+
+```sh
+codesign -d --entitlements :- path/to/YourApp.app
+```
+
+如果源码中存在 entitlement，但签名结果没有，需要在 Apple Developer 后台为 App ID 启用 Wi-Fi Aware，并重新生成 provisioning profile。
+
+Apple 官方说明：
+
+- [Adopting Wi-Fi Aware](https://developer.apple.com/documentation/wifiaware/adopting-wi-fi-aware)
+- [com.apple.developer.wifi-aware](https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.developer.wifi-aware)
+- [WiFiAwareServices](https://developer.apple.com/documentation/bundleresources/information-property-list/wifiawareservices)
+
 原生层只收发原始字节。生产接入必须在应用层实现认证加密。Android 后台前台服务由宿主 App 实现，本包不假设通知文案、图标或 Activity。

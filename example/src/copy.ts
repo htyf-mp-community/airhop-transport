@@ -23,4 +23,13 @@ export const copy = {
   sent: "Sent",
   lanFound: "LAN peer found",
   permissionDenied: "Nearby-device permission was denied",
+  wifiAwarePairing: "Wi-Fi Aware pairing",
+  pairedDevices: "Paired devices",
+  pairingUnsupported: "Wi-Fi Aware pairing is unavailable on this device",
+  findDevice: "Find device",
+  becomeDiscoverable: "Become discoverable",
+  pairingActionFind: "Choose a nearby Airhop device",
+  pairingActionDiscoverable: "Allow another Airhop device to pair",
+  pairingCancel: "Cancel",
+  pairingUnavailable: "Wi-Fi Aware is unavailable",
 } as const;

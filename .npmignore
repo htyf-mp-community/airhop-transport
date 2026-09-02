@@ -1,0 +1,28 @@
+# Repository-only files. package.json `files` is the primary publish allowlist;
+# this file also protects manual changes to that list.
+example/
+node_modules/
+.expo/
+.github/
+.vscode/
+coverage/
+*.log
+*.tsbuildinfo
+.DS_Store
+
+# Native build products, never native source.
+android/.gradle/
+android/build/
+android/local.properties
+ios/Pods/
+ios/build/
+DerivedData/
+
+# Development configuration
+.editorconfig
+.gitignore
+.prettierignore
+.prettierrc.json
+.yarnrc
+tsconfig.json
+yarn.lock

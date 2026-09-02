@@ -1,0 +1,37 @@
+{
+  "name": "@htyf-mp/airhop-transport",
+  "version": "0.1.0",
+  "description": "Raw-byte BLE, LAN and Wi-Fi Aware transports for React Native",
+  "source": "src/index.ts",
+  "main": "lib/commonjs/index.js",
+  "module": "lib/module/index.js",
+  "types": "lib/typescript/index.d.ts",
+  "react-native": "src/index.ts",
+  "files": ["src", "lib", "android", "ios", "AirhopTransport.podspec", "react-native.config.js", "README.md", "LICENSE"],
+  "scripts": {
+    "build": "bob build",
+    "clean": "bob clean",
+    "typecheck": "tsc --noEmit",
+    "prepare": "bob build",
+    "prepublishOnly": "yarn typecheck && yarn build",
+    "pack:check": "npm pack --dry-run --ignore-scripts",
+    "example": "yarn --cwd example"
+  },
+  "keywords": ["react-native", "bluetooth", "ble", "wifi-aware", "bonjour", "offline", "transport"],
+  "repository": { "type": "git", "url": "https://github.com/htyf-mp/airhop-transport.git" },
+  "homepage": "https://github.com/htyf-mp/airhop-transport#readme",
+  "author": "HTYF MP",
+  "license": "MIT",
+  "engines": { "node": ">=20.19.0" },
+  "packageManager": "yarn@1.22.22",
+  "publishConfig": { "access": "public" },
+  "peerDependencies": { "react": ">=18", "react-native": ">=0.76" },
+  "dependencies": {
+    "@noble/ciphers": "^1.3.0",
+    "@noble/curves": "^1.9.0",
+    "@noble/hashes": "^1.8.0",
+    "pako": "^2.1.0"
+  },
+  "devDependencies": { "@types/pako": "^2.0.3", "@types/react": "latest", "react": "latest", "react-native": "latest", "react-native-builder-bob": "latest", "typescript": "latest" },
+  "react-native-builder-bob": { "source": "src", "output": "lib", "targets": ["commonjs", "module", "typescript"] }
+}

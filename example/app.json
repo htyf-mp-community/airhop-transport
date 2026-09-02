@@ -1,0 +1,34 @@
+{
+  "expo": {
+    "name": "Airhop Transport Example",
+    "slug": "airhop-transport-example",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "bundleIdentifier": "com.htyfmp.airhoptransport.example",
+      "infoPlist": {
+        "NSBluetoothAlwaysUsageDescription": "Discover and communicate with nearby Airhop devices.",
+        "NSBluetoothPeripheralUsageDescription": "Advertise this device to nearby Airhop devices.",
+        "NSLocalNetworkUsageDescription": "Transfer data directly to Airhop devices on the local network.",
+        "NSBonjourServices": ["_airhop-lan-v1._tcp"],
+        "UIBackgroundModes": ["bluetooth-central", "bluetooth-peripheral"]
+      }
+    },
+    "android": {
+      "package": "com.htyfmp.airhoptransport.example",
+      "permissions": [
+        "android.permission.BLUETOOTH_SCAN",
+        "android.permission.BLUETOOTH_CONNECT",
+        "android.permission.BLUETOOTH_ADVERTISE",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_WIFI_STATE",
+        "android.permission.CHANGE_WIFI_STATE",
+        "android.permission.CHANGE_WIFI_MULTICAST_STATE",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.INTERNET"
+      ]
+    }
+  }
+}

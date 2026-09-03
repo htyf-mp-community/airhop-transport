@@ -32,7 +32,16 @@ iOS：
 yarn example ios --device
 ```
 
-分别在两台真机上点击 Start。设备建立 BLE 或 LAN 链路后，Links 区域会显示 `linkID`。输入文字并点击 Send，对方会在 Recent events 中看到收到的数据。
+分别在两台真机上点击 **Start BLE**。页面会直接显示 BLE 的四个阶段：
+
+1. 获取附近设备权限。
+2. 同时启动 GATT 广播和扫描。
+3. 等待另一台设备建立 BLE 链路。
+4. 选择链路并发送原始字节。
+
+连接成功后，Links 区域会显示 `BLE`、原生 `linkID`、本机在该连接中的 central/peripheral 角色和可用的 RSSI。第一个 BLE 链路会自动选中，也可以点击其他链路切换目标。输入文字并点击 Send，对方会在 Recent events 中看到链路、字节数和 UTF-8 内容。
+
+**Start Wi-Fi / LAN** 是独立的可选加速步骤，不影响 BLE 流程。为了清楚验证蓝牙，请先只在两台设备上启动 BLE，确认收发成功后再打开加速链路。
 
 普通 Expo Go 不包含本包的 Swift/Kotlin 模块，因此不能运行此示例。修改原生配置后需要重新执行 prebuild 并重新安装 development build。
 

@@ -24,7 +24,12 @@ import {
 import { copy } from "./src/copy";
 import { theme } from "./src/theme";
 
-interface LinkRow { linkID: string; kind: TransportKind }
+interface LinkRow {
+  linkID: string;
+  kind: TransportKind;
+  role?: string;
+  rssi?: number;
+}
 interface EventRow { id: number; text: string }
 
 async function requestAndroidPermissions(): Promise<boolean> {
@@ -51,8 +56,10 @@ export default function App() {
   const eventID = useRef(0);
   const [status, setStatus] = useState<string>(copy.stopped);
   const [running, setRunning] = useState(false);
+  const [permissionGranted, setPermissionGranted] = useState(Platform.OS === "ios");
   const [message, setMessage] = useState("");
   const [links, setLinks] = useState<LinkRow[]>([]);
+  const [selectedLinkID, setSelectedLinkID] = useState<string>();
   const [events, setEvents] = useState<EventRow[]>([]);
   const [pairingSupported, setPairingSupported] = useState(false);
   const [pairedDeviceCount, setPairedDeviceCount] = useState(0);
@@ -61,20 +68,41 @@ export default function App() {
     eventID.current += 1;
     setEvents((current) => [{ id: eventID.current, text }, ...current].slice(0, 30));
   };
-  const refreshLinks = () => setLinks([...transport.getLinks()]);
+  const refreshLinks = () => {
+    const current = transport.getLinks();
+    setLinks((previous) => current.map((link) => ({
+      ...link,
+      ...previous.find((item) => item.linkID === link.linkID),
+    })));
+  };
 
   useEffect(() => {
     subscriptions.current = [
-      transport.on("linkConnected", ({ linkID, kind }) => {
+      transport.on("linkConnected", ({ linkID, kind, meta }) => {
         addEvent(`${copy.connected}: ${kind} ${linkID}`);
-        refreshLinks();
+        setLinks((current) => [
+          ...current.filter((item) => item.linkID !== linkID),
+          {
+            linkID,
+            kind,
+            role: typeof meta?.role === "string" ? meta.role : undefined,
+            rssi: typeof meta?.rssi === "number" ? meta.rssi : undefined,
+          },
+        ]);
+        // Selecting the first BLE link makes the two-phone happy path require
+        // no knowledge of native link IDs. Users can still tap another link.
+        if (kind === "ble") setSelectedLinkID((current) => current ?? linkID);
       }),
       transport.on("linkDisconnected", ({ linkID, kind }) => {
         addEvent(`${copy.disconnected}: ${kind} ${linkID}`);
+        setSelectedLinkID((current) => current === linkID ? undefined : current);
         refreshLinks();
       }),
       transport.on("packetReceived", ({ linkID, kind, data }) => {
-        addEvent(`${copy.received}: ${kind} ${linkID} · ${new TextDecoder().decode(data)}`);
+        addEvent(`${copy.received}: ${kind} ${linkID} · ${data.byteLength} ${copy.bytes} · ${new TextDecoder().decode(data)}`);
+      }),
+      transport.on("availabilityChanged", ({ kind, available }) => {
+        addEvent(`${kind}: ${available ? copy.active : copy.bleUnavailable}`);
       }),
       transport.onLanPeerDiscovered(({ serviceName }) => {
         addEvent(`${copy.lanFound}: ${serviceName}`);
@@ -123,39 +151,48 @@ export default function App() {
     }
   };
 
-  const toggle = async () => {
+  const toggleBle = async () => {
     try {
       if (running) {
         setStatus(copy.stopping);
-        await transport.stopAll();
+        await transport.stopBle();
         setRunning(false);
-        setStatus(copy.stopped);
+        setStatus(copy.bleStopped);
         refreshLinks();
         return;
       }
-      if (!(await requestAndroidPermissions())) {
+      const granted = await requestAndroidPermissions();
+      setPermissionGranted(granted);
+      if (!granted) {
         Alert.alert(copy.error, copy.permissionDenied);
         return;
       }
-      setStatus(copy.starting);
-      await transport.startAll();
+      setStatus(copy.bleStarting);
+      // startBle performs both halves of discovery: GATT peripheral advertising
+      // and GATT central scanning. Run this on both physical devices.
+      await transport.startBle();
       setRunning(true);
-      setStatus(copy.running);
+      setStatus(copy.bleRunning);
     } catch (error) {
       setStatus(copy.error);
       addEvent(error instanceof Error ? error.message : String(error));
     }
   };
 
+  const startAccelerators = async () => {
+    await Promise.allSettled([transport.startLan(), transport.startWifi()]);
+    addEvent(copy.acceleratorsStarted);
+  };
+
   const send = async () => {
-    const link = links[0];
+    const link = links.find(({ linkID }) => linkID === selectedLinkID);
     if (!link) {
       Alert.alert(copy.error, copy.noLink);
       return;
     }
     const result = await transport.write(link.linkID, new TextEncoder().encode(message));
     if (result.ok) {
-      addEvent(`${copy.sent}: ${link.kind} ${link.linkID} · ${message}`);
+      addEvent(`${copy.sent}: ${link.kind} ${link.linkID} · ${new TextEncoder().encode(message).byteLength} ${copy.bytes} · ${message}`);
       setMessage("");
     } else {
       addEvent(result.error ?? copy.error);
@@ -168,10 +205,17 @@ export default function App() {
       <View style={styles.container}>
         <Text style={styles.title}>{copy.title}</Text>
         <Text style={styles.subtitle}>{copy.subtitle}</Text>
+        <Text style={styles.sectionTitle}>{copy.bleDemo}</Text>
+        <View style={styles.flowCard}>
+          <FlowStep label={copy.stepPermissions} state={permissionGranted ? copy.complete : copy.pending} complete={permissionGranted} />
+          <FlowStep label={copy.stepRadio} state={running ? copy.active : copy.pending} complete={running} />
+          <FlowStep label={copy.stepConnection} state={links.some(({ kind }) => kind === "ble") ? copy.complete : copy.pending} complete={links.some(({ kind }) => kind === "ble")} />
+          <FlowStep label={copy.stepTransfer} state={selectedLinkID ? copy.active : copy.pending} complete={Boolean(selectedLinkID)} />
+        </View>
         <View style={styles.statusRow}>
           <Text style={styles.status}>{status}</Text>
-          <Pressable accessibilityRole="button" onPress={() => void toggle()} style={styles.primaryButton}>
-            <Text style={styles.primaryButtonText}>{running ? copy.stop : copy.start}</Text>
+          <Pressable accessibilityRole="button" onPress={() => void toggleBle()} style={styles.primaryButton}>
+            <Text style={styles.primaryButtonText}>{running ? copy.stopBle : copy.startBle}</Text>
           </Pressable>
         </View>
 
@@ -205,7 +249,24 @@ export default function App() {
         ) : null}
 
         <Text style={styles.sectionTitle}>{copy.links}</Text>
-        <Text style={styles.body}>{links.length ? links.map((link) => `${link.kind}: ${link.linkID}`).join("\n") : copy.noLinks}</Text>
+        <Text style={styles.hint}>{copy.tapToSelect}</Text>
+        {links.length ? links.map((link) => (
+          <Pressable
+            accessibilityRole="button"
+            key={link.linkID}
+            onPress={() => setSelectedLinkID(link.linkID)}
+            style={[styles.linkCard, selectedLinkID === link.linkID && styles.linkCardSelected]}
+          >
+            <Text style={styles.linkTitle}>{`${link.kind.toUpperCase()}${selectedLinkID === link.linkID ? ` · ${copy.selected}` : ""}`}</Text>
+            <Text style={styles.linkDetail}>{link.linkID}</Text>
+            {link.role ? <Text style={styles.linkDetail}>{`${copy.role}: ${link.role}${link.rssi === undefined ? "" : ` · ${copy.rssi}: ${link.rssi}`}`}</Text> : null}
+          </Pressable>
+        )) : <Text style={styles.body}>{copy.noLinks}</Text>}
+
+        <Text style={styles.sectionTitle}>{copy.accelerators}</Text>
+        <Pressable accessibilityRole="button" onPress={() => void startAccelerators()} style={styles.secondaryButton}>
+          <Text style={styles.secondaryButtonText}>{copy.startAccelerators}</Text>
+        </Pressable>
         <Text style={styles.sectionTitle}>{copy.events}</Text>
         <FlatList
           data={events}
@@ -215,6 +276,16 @@ export default function App() {
         />
       </View>
     </SafeAreaView>
+  );
+}
+
+function FlowStep({ label, state, complete }: { label: string; state: string; complete: boolean }) {
+  return (
+    <View style={styles.flowRow}>
+      <View style={[styles.flowDot, complete && styles.flowDotComplete]} />
+      <Text style={styles.flowLabel}>{label}</Text>
+      <Text style={[styles.flowState, complete && styles.flowStateComplete]}>{state}</Text>
+    </View>
   );
 }
 
@@ -228,12 +299,24 @@ const styles = StyleSheet.create({
   primaryButton: { alignItems: "center", backgroundColor: theme.color.accent, borderRadius: theme.radius.sm, justifyContent: "center", minHeight: theme.touch, paddingHorizontal: theme.space.lg },
   primaryButtonText: { color: theme.color.background, fontSize: theme.font.md, fontWeight: "700" },
   sectionTitle: { color: theme.color.text, fontSize: theme.font.md, fontWeight: "600", marginTop: theme.space.md },
+  flowCard: { backgroundColor: theme.color.surface, borderColor: theme.color.border, borderRadius: theme.radius.md, borderWidth: 1, padding: theme.space.md },
+  flowRow: { alignItems: "center", flexDirection: "row", minHeight: 34 },
+  flowDot: { backgroundColor: theme.color.border, borderRadius: 5, height: 10, marginEnd: theme.space.sm, width: 10 },
+  flowDotComplete: { backgroundColor: theme.color.accent },
+  flowLabel: { color: theme.color.text, flex: 1, fontSize: theme.font.sm },
+  flowState: { color: theme.color.muted, fontSize: theme.font.sm },
+  flowStateComplete: { color: theme.color.accent },
   composer: { flexDirection: "row", gap: theme.space.sm },
   input: { backgroundColor: theme.color.surface, borderColor: theme.color.border, borderRadius: theme.radius.sm, borderWidth: 1, color: theme.color.text, flex: 1, minHeight: theme.touch, paddingHorizontal: theme.space.md },
   sendButton: { alignItems: "center", backgroundColor: theme.color.accent, borderRadius: theme.radius.sm, justifyContent: "center", minHeight: theme.touch, paddingHorizontal: theme.space.md },
   sendText: { color: theme.color.background, fontWeight: "700" },
   disabled: { opacity: 0.45 },
   body: { backgroundColor: theme.color.surface, borderRadius: theme.radius.md, color: theme.color.muted, fontSize: theme.font.sm, padding: theme.space.md },
+  hint: { color: theme.color.muted, fontSize: theme.font.sm },
+  linkCard: { backgroundColor: theme.color.surface, borderColor: theme.color.border, borderRadius: theme.radius.sm, borderWidth: 1, padding: theme.space.md },
+  linkCardSelected: { borderColor: theme.color.accent },
+  linkTitle: { color: theme.color.text, fontSize: theme.font.sm, fontWeight: "700" },
+  linkDetail: { color: theme.color.muted, fontSize: theme.font.sm, marginTop: theme.space.xs },
   event: { borderBottomColor: theme.color.border, borderBottomWidth: 1, color: theme.color.muted, fontSize: theme.font.sm, paddingVertical: theme.space.sm },
   pairingCard: { gap: theme.space.sm },
   pairingActions: { flexDirection: "row", gap: theme.space.sm },

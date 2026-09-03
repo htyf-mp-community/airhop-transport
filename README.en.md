@@ -23,6 +23,8 @@ cd ios && pod install
 
 The iOS host must provide Bluetooth and local-network usage descriptions in `Info.plist` and declare the `_airhop-lan-v1._tcp` Bonjour service. Enabling iOS Wi-Fi Aware also requires its entitlement and the `_airhop-mesh-v1._tcp` service declaration. Android manifest permissions are merged automatically, but the host app must still request runtime permissions.
 
+iOS BLE does not require a background mode for foreground use. To preserve and restore Bluetooth state, the host should also declare `bluetooth-central` and `bluetooth-peripheral` in `UIBackgroundModes`. The package enables restoration on each CoreBluetooth manager only when its matching mode is present; otherwise it falls back to foreground BLE and avoids CoreBluetooth's initialization assertion.
+
 ## Usage
 
 ```ts

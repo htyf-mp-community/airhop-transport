@@ -1,6 +1,6 @@
 {
   "name": "@htyf-mp/airhop-transport",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Raw-byte BLE, LAN and Wi-Fi Aware transports for React Native",
   "source": "src/index.ts",
   "main": "lib/commonjs/index.js",
@@ -12,8 +12,9 @@
     "build": "bob build",
     "clean": "bob clean",
     "typecheck": "tsc --noEmit",
+    "test:ios-config": "node scripts/test-ios-config.mjs",
     "prepare": "bob build",
-    "prepublishOnly": "yarn typecheck && yarn build",
+    "prepublishOnly": "yarn typecheck && yarn test:ios-config && yarn build",
     "pack:check": "npm pack --dry-run --ignore-scripts",
     "example": "yarn --cwd example"
   },

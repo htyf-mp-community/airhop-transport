@@ -173,7 +173,11 @@ final class AirhopBLEModule: RCTEventEmitter {
         let manager = CBCentralManager(
             delegate: self,
             queue: queue,
-            options: [CBCentralManagerOptionRestoreIdentifierKey: BLEConst.centralRestorationKey]
+            options: AirhopBLEConfiguration.restorationOptions(
+                requiredMode: "bluetooth-central",
+                key: CBCentralManagerOptionRestoreIdentifierKey,
+                identifier: BLEConst.centralRestorationKey
+            )
         )
         centralManager = manager
         return manager
@@ -195,7 +199,11 @@ final class AirhopBLEModule: RCTEventEmitter {
         let manager = CBPeripheralManager(
             delegate: self,
             queue: queue,
-            options: [CBPeripheralManagerOptionRestoreIdentifierKey: BLEConst.peripheralRestorationKey]
+            options: AirhopBLEConfiguration.restorationOptions(
+                requiredMode: "bluetooth-peripheral",
+                key: CBPeripheralManagerOptionRestoreIdentifierKey,
+                identifier: BLEConst.peripheralRestorationKey
+            )
         )
         peripheralManager = manager
         return manager
@@ -1023,20 +1031,22 @@ final class AirhopBLERestoration: NSObject {
                 self.central = CBCentralManager(
                     delegate: self,
                     queue: AirhopBLEQueue.shared,
-                    options: [
-                        CBCentralManagerOptionRestoreIdentifierKey:
-                            BLEConst.centralRestorationKey
-                    ]
+                    options: AirhopBLEConfiguration.restorationOptions(
+                        requiredMode: "bluetooth-central",
+                        key: CBCentralManagerOptionRestoreIdentifierKey,
+                        identifier: BLEConst.centralRestorationKey
+                    )
                 )
             }
             if self.peripheral == nil {
                 self.peripheral = CBPeripheralManager(
                     delegate: self,
                     queue: AirhopBLEQueue.shared,
-                    options: [
-                        CBPeripheralManagerOptionRestoreIdentifierKey:
-                            BLEConst.peripheralRestorationKey
-                    ]
+                    options: AirhopBLEConfiguration.restorationOptions(
+                        requiredMode: "bluetooth-peripheral",
+                        key: CBPeripheralManagerOptionRestoreIdentifierKey,
+                        identifier: BLEConst.peripheralRestorationKey
+                    )
                 )
             }
         }

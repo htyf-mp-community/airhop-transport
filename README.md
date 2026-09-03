@@ -23,6 +23,8 @@ cd ios && pod install
 
 iOS 宿主需在 `Info.plist` 提供蓝牙和本地网络用途说明，并声明 `_airhop-lan-v1._tcp` Bonjour 服务。启用 iOS Wi-Fi Aware 时还需配置相应 entitlement 和 `_airhop-mesh-v1._tcp` 服务。Android manifest 权限自动合并，运行时权限仍由宿主 App 请求。
 
+iOS BLE 在前台无需后台模式。若需蓝牙状态保存恢复，宿主还应在 `UIBackgroundModes` 中声明 `bluetooth-central` 和 `bluetooth-peripheral`。包仅在相应模式已声明时为 CoreBluetooth manager 启用状态恢复；缺少模式时自动使用前台 BLE，避免 CoreBluetooth 初始化断言。
+
 ## 使用
 
 ```ts

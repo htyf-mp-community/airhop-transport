@@ -1,5 +1,7 @@
 # @htyf-mp/airhop-transport
 
+[简体中文](./README.md) | [English](./README.en.md)
+
 React Native 原始字节通信包，提供 BLE、同一局域网 LAN 和 Wi-Fi Aware 链路。
 
 ## 能力

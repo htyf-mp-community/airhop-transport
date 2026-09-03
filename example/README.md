@@ -1,5 +1,7 @@
 # Airhop Transport Example
 
+[简体中文](./README.md) | [English](./README.en.md)
+
 这个 Expo development build 用于两台真机验证 `@htyf-mp/airhop-transport` 的 BLE、LAN 和 Wi-Fi Aware 原始字节传输。
 
 ## 准备

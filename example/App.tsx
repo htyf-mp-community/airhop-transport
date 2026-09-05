@@ -7,6 +7,10 @@ import {
   type TransportKind,
   type TransportSubscription,
 } from "@htyf-mp/airhop-transport";
+import {
+  AirhopSignalingAdapter,
+  AirhopWebRTCTransport,
+} from "@htyf-mp/airhop-transport/webrtc";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -32,6 +36,12 @@ interface LinkRow {
 }
 interface EventRow { id: number; text: string }
 
+const SIGNAL_PREFIX = new Uint8Array([0x41, 0x48, 0x53, 0x31]);
+
+function isSignalBytes(bytes: Uint8Array): boolean {
+  return SIGNAL_PREFIX.every((value, index) => bytes[index] === value);
+}
+
 async function requestAndroidPermissions(): Promise<boolean> {
   if (Platform.OS !== "android") return true;
   const permissions = Platform.Version >= 31
@@ -52,6 +62,24 @@ export default function App() {
     bleLocalName: "airhop-example",
   }), []);
   const pairing = useMemo(() => new WiFiAwarePairing(), []);
+  const signaling = useMemo(() => new AirhopSignalingAdapter({
+    async send(linkID, bytes) {
+      const framed = new Uint8Array(SIGNAL_PREFIX.byteLength + bytes.byteLength);
+      framed.set(SIGNAL_PREFIX);
+      framed.set(bytes, SIGNAL_PREFIX.byteLength);
+      const result = await transport.write(linkID, framed);
+      if (!result.ok) throw new Error(result.error ?? copy.error);
+    },
+    subscribe(listener) {
+      return transport.on("packetReceived", ({ linkID, data }) => {
+        if (isSignalBytes(data)) listener(linkID, data.subarray(SIGNAL_PREFIX.byteLength));
+      });
+    },
+  }, { maxFrameBytes: 480 }), [transport]);
+  const webrtc = useMemo(() => new AirhopWebRTCTransport({
+    localPeerID: `example-${Date.now().toString(36)}`,
+    signaling,
+  }), [signaling]);
   const subscriptions = useRef<TransportSubscription[]>([]);
   const eventID = useRef(0);
   const [status, setStatus] = useState<string>(copy.stopped);
@@ -63,6 +91,7 @@ export default function App() {
   const [events, setEvents] = useState<EventRow[]>([]);
   const [pairingSupported, setPairingSupported] = useState(false);
   const [pairedDeviceCount, setPairedDeviceCount] = useState(0);
+  const [webrtcLinkID, setWebrtcLinkID] = useState<string>();
 
   const addEvent = (text: string) => {
     eventID.current += 1;
@@ -99,6 +128,7 @@ export default function App() {
         refreshLinks();
       }),
       transport.on("packetReceived", ({ linkID, kind, data }) => {
+        if (isSignalBytes(data)) return;
         addEvent(`${copy.received}: ${kind} ${linkID} · ${data.byteLength} ${copy.bytes} · ${new TextDecoder().decode(data)}`);
       }),
       transport.on("availabilityChanged", ({ kind, available }) => {
@@ -109,6 +139,18 @@ export default function App() {
         void transport.connectLanPeer(serviceName).catch(() => undefined);
       }),
       pairing.onDevicesChanged((count) => setPairedDeviceCount(count)),
+      webrtc.on("linkConnected", ({ linkID }) => {
+        setWebrtcLinkID(linkID);
+        addEvent(`${copy.webrtcConnected}: ${linkID}`);
+      }),
+      webrtc.on("linkDisconnected", ({ linkID }) => {
+        setWebrtcLinkID(undefined);
+        addEvent(`${copy.webrtcDisconnected}: ${linkID}`);
+      }),
+      webrtc.on("packetReceived", ({ linkID, data }) => {
+        addEvent(`${copy.received}: webrtc ${linkID} · ${data.byteLength} ${copy.bytes} · ${new TextDecoder().decode(data)}`);
+      }),
+      webrtc.on("error", ({ error }) => addEvent(error.message)),
     ];
     if (Platform.OS === "ios") {
       void pairing.getState().then((state) => {
@@ -118,9 +160,11 @@ export default function App() {
     }
     return () => {
       for (const subscription of subscriptions.current) subscription.remove();
+      webrtc.dispose();
+      signaling.dispose();
       void transport.dispose();
     };
-  }, [pairing, transport]);
+  }, [pairing, signaling, transport, webrtc]);
 
   const presentPairing = async (mode: WiFiPairingMode) => {
     if (!pairingSupported) {
@@ -182,6 +226,27 @@ export default function App() {
   const startAccelerators = async () => {
     await Promise.allSettled([transport.startLan(), transport.startWifi()]);
     addEvent(copy.acceleratorsStarted);
+  };
+
+  const connectWebRTC = async () => {
+    const ble = links.find(({ linkID, kind }) => linkID === selectedLinkID && kind === "ble");
+    if (!ble) {
+      Alert.alert(copy.error, copy.noBleForWebRTC);
+      return;
+    }
+    await webrtc.connect(ble.linkID);
+    addEvent(copy.webrtcConnecting);
+  };
+
+  const sendWebRTC = async () => {
+    if (!webrtcLinkID) {
+      Alert.alert(copy.error, copy.noLink);
+      return;
+    }
+    const bytes = new TextEncoder().encode(message);
+    await webrtc.write(webrtcLinkID, bytes);
+    addEvent(`${copy.sent}: webrtc ${webrtcLinkID} · ${bytes.byteLength} ${copy.bytes} · ${message}`);
+    setMessage("");
   };
 
   const send = async () => {
@@ -267,6 +332,17 @@ export default function App() {
         <Pressable accessibilityRole="button" onPress={() => void startAccelerators()} style={styles.secondaryButton}>
           <Text style={styles.secondaryButtonText}>{copy.startAccelerators}</Text>
         </Pressable>
+
+        <Text style={styles.sectionTitle}>{copy.webrtc}</Text>
+        <Text style={styles.hint}>{copy.webrtcHint}</Text>
+        <View style={styles.pairingActions}>
+          <Pressable accessibilityRole="button" onPress={() => void connectWebRTC()} style={styles.secondaryButton}>
+            <Text style={styles.secondaryButtonText}>{copy.connectWebRTC}</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" disabled={!message || !webrtcLinkID} onPress={() => void sendWebRTC()} style={[styles.secondaryButton, (!message || !webrtcLinkID) && styles.disabled]}>
+            <Text style={styles.secondaryButtonText}>{copy.sendWebRTC}</Text>
+          </Pressable>
+        </View>
         <Text style={styles.sectionTitle}>{copy.events}</Text>
         <FlatList
           data={events}

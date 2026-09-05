@@ -45,6 +45,17 @@ yarn example ios --device
 
 **Start Wi-Fi / LAN** 是独立的可选加速步骤，不影响 BLE 流程。为了清楚验证蓝牙，请先只在两台设备上启动 BLE，确认收发成功后再打开加速链路。
 
+## 验证 WebRTC DataChannel
+
+example 已安装 `react-native-webrtc`，必须重新执行 prebuild 并安装 development build。验证步骤：
+
+1. 两台真机都点击 **Start BLE**，等待 BLE 链路出现。
+2. 只在其中一台设备上选中 BLE 链路并点击 **Connect WebRTC over selected BLE signaling link**。
+3. BLE 负责交换 offer、answer 和 ICE candidate，WebRTC 建立后会出现 `WebRTC connected`。
+4. 输入文本，点击 **Send WebRTC**，另一台设备会显示收到的字节数和 UTF-8 内容。
+
+该演示把 BLE `linkID` 当作临时对端标识，只用于展示无服务器信令。生产 App 必须使用经过会话认证的稳定 peer ID，并验证信令发送者。两台设备还必须具有可互通的 IP 路径，BLE 只承载信令，不承载 DataChannel 数据。
+
 普通 Expo Go 不包含本包的 Swift/Kotlin 模块，因此不能运行此示例。修改原生配置后需要重新执行 prebuild 并重新安装 development build。
 
 ## iOS Wi-Fi Aware

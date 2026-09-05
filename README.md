@@ -2,7 +2,7 @@
 
 [简体中文](./README.md) | [English](./README.en.md)
 
-React Native 原始字节通信包，提供 BLE、同一局域网 LAN 和 Wi-Fi Aware 链路。
+React Native 原始字节通信包，提供 BLE、同一局域网 LAN、Wi-Fi Aware 和可选 WebRTC DataChannel 链路。
 
 ## 能力
 
@@ -11,6 +11,7 @@ React Native 原始字节通信包，提供 BLE、同一局域网 LAN 和 Wi-Fi 
 | BLE | 支持 | 支持 | 支持 |
 | LAN（mDNS + TCP） | 支持 | 支持 | 支持 |
 | Wi-Fi Aware | Android 10+ 数据链路 | iOS 26+ | Android 与 iOS 不互通 |
+| WebRTC DataChannel | 支持 | 支持 | 支持，需要可用 IP 路径 |
 
 跨平台 WiFi 加速走 LAN。Wi-Fi Aware 是支持设备上的额外快速链路，BLE 负责发现和兜底。
 
@@ -20,6 +21,15 @@ React Native 原始字节通信包，提供 BLE、同一局域网 LAN 和 Wi-Fi 
 npm install @htyf-mp/airhop-transport
 cd ios && pod install
 ```
+
+WebRTC 是可选能力。需要文本、文件或公网点对点传输时，由宿主显式安装原生依赖：
+
+```sh
+npm install react-native-webrtc
+cd ios && pod install
+```
+
+只使用 BLE、LAN 或 Wi-Fi Aware 的宿主不需要安装 `react-native-webrtc`。WebRTC 不能在 Expo Go 中运行，需要 development build 或正式原生构建。
 
 iOS 宿主需在 `Info.plist` 提供蓝牙和本地网络用途说明，并声明 `_airhop-lan-v1._tcp` Bonjour 服务。启用 iOS Wi-Fi Aware 时还需配置相应 entitlement 和 `_airhop-mesh-v1._tcp` 服务。Android manifest 权限自动合并，运行时权限仍由宿主 App 请求。
 
@@ -33,7 +43,7 @@ import { AirhopTransport } from "@htyf-mp/airhop-transport";
 const transport = new AirhopTransport({
   preferredKinds: ["wifi", "lan", "ble"],
   lanInstanceName: "random-session-name",
-});
+}, { maxFrameBytes: 480 }); // 信令底层使用 BLE 时需低于 512 字节。
 
 transport.on("packetReceived", ({ linkID, data }) => consumeBytes(linkID, data));
 transport.onLanPeerDiscovered(({ serviceName }) => {
@@ -42,6 +52,69 @@ transport.onLanPeerDiscovered(({ serviceName }) => {
 await transport.startAll();
 await transport.write(linkID, bytes);
 ```
+
+## WebRTC 文本与文件传输
+
+`AirhopWebRTCTransport` 基于 `react-native-webrtc` 的可靠、有序 `RTCDataChannel`。它只收发 `Uint8Array`，不请求相机和麦克风权限，也不包含音视频 UI。
+
+WebRTC 的 offer、answer 和 ICE candidate 必须通过另一条信令路径交换。`AirhopSignalingAdapter` 把宿主提供的认证二进制信令通道适配成 WebRTC 信令，因此可以使用现有 BLE Mesh、LAN、二维码流程或互联网服务器。
+
+```ts
+import {
+  AirhopSignalingAdapter,
+  AirhopWebRTCTransport,
+} from "@htyf-mp/airhop-transport/webrtc";
+
+const signaling = new AirhopSignalingAdapter({
+  // sendSignalBytes 和 subscribeSignalBytes 由宿主实现。生产环境必须
+  // 验证 fromPeerID，不能信任 SDP 中自报的身份。
+  send: (targetPeerID, bytes) => sendSignalBytes(targetPeerID, bytes),
+  subscribe(listener) {
+    return subscribeSignalBytes((fromPeerID, bytes) => listener(fromPeerID, bytes));
+  },
+}, { maxFrameBytes: 480 }); // 信令底层使用 BLE 时需低于 512 字节。
+
+const webrtc = new AirhopWebRTCTransport({
+  localPeerID,
+  signaling,
+  configuration: {
+    iceServers: [
+      { urls: "stun:stun.example.com:3478" },
+      {
+        urls: "turn:turn.example.com:3478",
+        username: turnUsername,
+        credential: turnCredential,
+      },
+    ],
+  },
+});
+
+webrtc.on("linkConnected", ({ linkID, peerID }) => {
+  rememberWebRTCLink(peerID, linkID);
+});
+
+webrtc.on("packetReceived", ({ linkID, data }) => {
+  consumeBytes(linkID, data);
+});
+
+const pendingLinkID = await webrtc.connect(remotePeerID);
+// linkConnected 后发送。短文本和文件字节使用同一个 API。
+await webrtc.write(pendingLinkID, new TextEncoder().encode("你好"));
+await webrtc.write(openLinkID, fileBytes);
+```
+
+### 分块、背压与限制
+
+- 默认每个 DataChannel frame 最大 16 KiB，较大的 `write()` 会自动分块并在接收端重组。
+- 信令适配器同样支持自动分片。直接以 BLE 承载信令时设置 `maxFrameBytes: 480`；经过已有 Mesh 分片层时可保留默认值。
+- 默认单条逻辑消息最大 64 MiB，可通过 `maxMessageBytes` 调整。
+- 当 `bufferedAmount` 超过 256 KiB 时暂停写入，并等待 `bufferedamountlow`，避免大文件挤爆原生发送队列。
+- 重组项 60 秒未完成会被丢弃。
+- DataChannel 自带 DTLS 加密，但宿主仍必须认证信令身份，避免中间人替换 SDP 指纹。
+- 同一局域网可直接使用 host candidate；跨 NAT 通常需要 STUN，严格 NAT 或企业网络可能必须使用 TURN。
+- 没有 IP 路径时 WebRTC 无法建连，应回退到 LAN、Wi-Fi Aware 或 BLE。
+
+当前 API 将一次 `write()` 的完整内容在内存中重组，适合包当前最大 1 MiB 的文件场景。若宿主开放数百 MiB 或更大的文件，应在业务层按文件块调用 `write()`，边接收边写临时文件，并校验总长度和 SHA-256，不要一次读入内存。
 
 ## Mesh 核心
 

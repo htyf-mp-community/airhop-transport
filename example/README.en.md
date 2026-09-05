@@ -45,6 +45,17 @@ After connecting, the Links section shows `BLE`, the native `linkID`, this devic
 
 **Start Wi-Fi / LAN** is an independent, optional acceleration step. To verify Bluetooth clearly, start only BLE on both devices first, confirm bidirectional transfer, and then enable the faster links.
 
+## Verify WebRTC DataChannel
+
+The example installs `react-native-webrtc`, so run prebuild again and install a new development build. To test it:
+
+1. Tap **Start BLE** on both physical devices and wait for a BLE link.
+2. On one device only, select the BLE link and tap **Connect WebRTC over selected BLE signaling link**.
+3. BLE carries the offer, answer, and ICE candidates. `WebRTC connected` appears after the direct connection opens.
+4. Enter text and tap **Send WebRTC**. The other device displays the received byte count and UTF-8 content.
+
+This demonstration uses the BLE `linkID` as an ephemeral remote identifier only to show serverless signaling. A production app must use a stable, session-authenticated peer ID and verify the signaling sender. Both devices still need a mutually reachable IP path because BLE carries signaling, not DataChannel traffic.
+
 Expo Go cannot run this example because it does not contain this package's Swift and Kotlin modules. Run prebuild and reinstall the development build after changing native configuration.
 
 ## iOS Wi-Fi Aware
